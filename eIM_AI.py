@@ -2,57 +2,88 @@
 # coding: utf-8
 
 # In[1]:
-
+#pip install --upgrade google-cloud-aiplatform
+#gcloud auth application-default login
 
 import streamlit as st
 from google.cloud import aiplatform
 from google.oauth2 import service_account
 
+import base64
+import vertexai
+from vertexai.generative_models import GenerativeModel, Part, SafetySetting
+
+credentials_info = st.secrets["gsc_connections"]
+credentials = service_account.Credentials.from_service_account_info(credentials_info)
 # Authenticate using secrets in Streamlit Cloud
 def initialize_vertex_client():
     # Build the credentials from Streamlit secrets
-    credentials = service_account.Credentials.from_service_account_info({
-        "type": "service_account",
-        "project_id": st.secrets["GOOGLE_PROJECT_ID"],
-        "private_key_id": st.secrets["GOOGLE_PRIVATE_KEY_ID"],
-        "private_key": st.secrets["GOOGLE_PRIVATE_KEY"].replace("\\n", "\n"),
-        "client_email": st.secrets["GOOGLE_CLIENT_EMAIL"],
-        "client_id": st.secrets["GOOGLE_CLIENT_ID"],
-        "auth_uri": st.secrets["GOOGLE_AUTH_URI"],
-        "token_uri": st.secrets["GOOGLE_TOKEN_URI"],
-        "auth_provider_x509_cert_url": st.secrets["GOOGLE_AUTH_PROVIDER_X509_CERT_URL"],
-        "client_x509_cert_url": st.secrets["GOOGLE_CLIENT_X509_CERT_URL"],
-    })
-    aiplatform.init(credentials=credentials, project=st.secrets["GOOGLE_PROJECT_ID"])
-    # Define your endpoint name and model ID
-    endpoint_name = "projects/1067800176405/locations/us-central1/endpoints/7477014419923271680"
-    model_id = "gemma-1_1-2b-it-1731279494640"
+    
+    aiplatform.init(project="eim-conventions", location="us-central1", credentials=credentials)
+
+
+
+def generate():
+    vertexai.init(project="eim-convention", location="northamerica-northeast1", credentials=credentials)
+    model = GenerativeModel(
+        "gemini-1.5-pro-002",
+        system_instruction=[textsi_1]
+    )
+    responses = model.generate_content(
+        [new_data],
+        generation_config=generation_config,
+        safety_settings=safety_settings,
+        stream=True,
+    )
+
+    curr_text = ""
+
+    for response in responses:
+        new_text = curr_text + response.text
+        
+    return rew_text
+
+with open("/mount/src/eIM/instructions.txt", "r") as file:
+    textsi_1 = file.read()
+
+generation_config = {
+    "max_output_tokens": 8192,
+    "temperature": 1,
+    "top_p": 0.95,
+}
+
+safety_settings = [
+    SafetySetting(
+        category=SafetySetting.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold=SafetySetting.HarmBlockThreshold.OFF
+    ),
+    SafetySetting(
+        category=SafetySetting.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold=SafetySetting.HarmBlockThreshold.OFF
+    ),
+    SafetySetting(
+        category=SafetySetting.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold=SafetySetting.HarmBlockThreshold.OFF
+    ),
+    SafetySetting(
+        category=SafetySetting.HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold=SafetySetting.HarmBlockThreshold.OFF
+    ),
+]
 
 initialize_vertex_client()
 
-# Set up Streamlit app UI
-st.title("Gemini Pro Prompt with Streamlit")
-user_input = st.text_input("Enter text for Gemini Prompt:")
+st.title("Incident Classifier")
+st.write('')
+st.write(intro)
+st.write('')
+st.write('This model can classify assaults, thefts, TFA, BNE, and robberies. Offences outside of these categories will be classified with a low probability indicator.')
+new_data = st.text_area("Enter a synopsis. The more text entered, the better the classification.", height=200, value="I was walking and someone punched me for no reason. I had minor injuries. I reported the incident to police.")
 
-# Function to call the Gemini Pro model
-def call_gemini_pro(text):
-    # Initialize the endpoint
-    endpoint = aiplatform.Endpoint(endpoint_name=endpoint_name)
-    # Define the input as required by the prompt
-    response = endpoint.predict(instances=[{"content": text}], parameters={"temperature": 0.7})
-    return response.predictions[0] if response.predictions else "No response"
-
-# Display result when button is clicked
+#if button is clicked
 if st.button("Generate Response"):
-    if user_input:
-        result = call_gemini_pro(user_input)
-        st.write(result)
-    else:
-        st.warning("Please enter text.")
+    result = generate()
+    st.write(result)
 
 
 # In[ ]:
-
-
-
-
